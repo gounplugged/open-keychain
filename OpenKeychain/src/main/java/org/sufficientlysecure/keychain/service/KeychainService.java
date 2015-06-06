@@ -68,6 +68,7 @@ import org.sufficientlysecure.keychain.util.ParcelableFileCache;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -84,6 +85,8 @@ import de.measite.minidns.Question;
 import de.measite.minidns.Record;
 import de.measite.minidns.record.Data;
 import de.measite.minidns.record.TXT;
+import org.sufficientlysecure.keychain.util.ParcelableProxy;
+import org.sufficientlysecure.keychain.util.Preferences;
 
 /**
  * This Service contains all important long lasting operations for OpenKeychain. It receives Intents with
@@ -169,6 +172,9 @@ public class KeychainService extends Service implements Progressable {
     // consolidate
     public static final String CONSOLIDATE_RECOVERY = "consolidate_recovery";
 
+    // proxy extras
+    public static final String EXTRA_PARCELABLE_PROXY = "parcelable_proxy";
+
     Messenger mMessenger;
 
     // this attribute can possibly merged with the one above? not sure...
@@ -242,7 +248,7 @@ public class KeychainService extends Service implements Progressable {
                         // Operation
                         CertifyOperation op = new CertifyOperation(mKeychainService, providerHelper, mKeychainService,
                                 mActionCanceled);
-                        CertifyResult result = op.certify(parcel, cryptoInput, keyServerUri);
+                        CertifyResult result = op.certify(parcel, cryptoInput, keyServerUri, getProxyFromBundle(data));
 
                         // Result
                         sendMessageToHandler(MessageStatus.OKAY, result);
@@ -470,6 +476,7 @@ public class KeychainService extends Service implements Progressable {
                         break;
                     }
                     case ACTION_IMPORT_KEYRING: {
+                        Proxy proxy = getProxyFromBundle(data);
 
                         // Input
                         String keyServer = data.getString(IMPORT_KEY_SERVER);
@@ -477,7 +484,7 @@ public class KeychainService extends Service implements Progressable {
 
                         // either keyList or cache must be null, no guarantees otherwise
                         if (keyList == null) {// import from file, do serially
-                            serialKeyImport(null, keyServer, providerHelper);
+                            serialKeyImport(null, keyServer, providerHelper, proxy);
                         } else {
                             // if there is more than one key with the same fingerprint, we do a serial import to prevent
                             // https://github.com/open-keychain/open-keychain/issues/1221
@@ -487,9 +494,9 @@ public class KeychainService extends Service implements Progressable {
                             }
                             if (keyFingerprintSet.size() == keyList.size()) {
                                 // all keys have unique fingerprints
-                                multiThreadedKeyImport(keyList.iterator(), keyList.size(), keyServer);
+                                multiThreadedKeyImport(keyList.iterator(), keyList.size(), keyServer, proxy);
                             } else {
-                                serialKeyImport(keyList, keyServer, providerHelper);
+                                serialKeyImport(keyList, keyServer, providerHelper, proxy);
                             }
                         }
 
@@ -526,7 +533,7 @@ public class KeychainService extends Service implements Progressable {
                                     providerHelper, mKeychainService);
 
                             try {
-                                importExportOperation.uploadKeyRingToServer(server, keyring);
+                                importExportOperation.uploadKeyRingToServer(server, keyring, getProxyFromBundle(data));
                             } catch (Keyserver.AddKeyException e) {
                                 throw new PgpGeneralException("Unable to export key to selected server");
                             }
@@ -549,6 +556,11 @@ public class KeychainService extends Service implements Progressable {
         actionThread.start();
         
         return START_NOT_STICKY;
+    }
+
+    private final Proxy getProxyFromBundle(Bundle data) {
+        ParcelableProxy parcelableProxy = data.getParcelable(EXTRA_PARCELABLE_PROXY);
+        return parcelableProxy==null?null:parcelableProxy.getProxy();
     }
 
     private void sendProofError(List<String> log, String label) {
@@ -653,7 +665,7 @@ public class KeychainService extends Service implements Progressable {
     }
 
     public void serialKeyImport(ArrayList<ParcelableKeyRing> keyList, final String keyServer,
-                                ProviderHelper providerHelper) {
+                                ProviderHelper providerHelper, Proxy proxy) {
         Log.d(Constants.TAG, "serial key import starting");
         ParcelableFileCache<ParcelableKeyRing> cache =
                 new ParcelableFileCache<>(mKeychainService, "key_import.pcl");
@@ -664,8 +676,8 @@ public class KeychainService extends Service implements Progressable {
                 mActionCanceled);
         // Either list or cache must be null, no guarantees otherwise.
         ImportKeyResult result = keyList != null
-                ? importExportOperation.importKeyRings(keyList, keyServer)
-                : importExportOperation.importKeyRings(cache, keyServer);
+                ? importExportOperation.importKeyRings(keyList, keyServer, proxy)
+                : importExportOperation.importKeyRings(cache, keyServer, proxy);
 
         ContactSyncAdapterService.requestSync();
         // Result
@@ -675,7 +687,7 @@ public class KeychainService extends Service implements Progressable {
     }
 
     public void multiThreadedKeyImport(Iterator<ParcelableKeyRing> keyListIterator, int totKeys, final String
-            keyServer) {
+            keyServer, final Proxy proxy) {
         Log.d(Constants.TAG, "Multi-threaded key import starting");
         if (keyListIterator != null) {
             mKeyImportAccumulator = new KeyImportAccumulator(totKeys, mKeychainService);
@@ -706,7 +718,7 @@ public class KeychainService extends Service implements Progressable {
                             list.add(pkRing);
 
                             result = importExportOperation.importKeyRings(list,
-                                    keyServer);
+                                    keyServer, proxy);
                         } finally {
                             // in the off-chance that importKeyRings does something to crash the
                             // thread before it can call singleKeyRingImportCompleted, our imported

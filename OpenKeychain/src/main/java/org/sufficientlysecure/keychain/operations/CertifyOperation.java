@@ -46,6 +46,7 @@ import org.sufficientlysecure.keychain.ui.util.KeyFormattingUtils;
 import org.sufficientlysecure.keychain.util.Log;
 import org.sufficientlysecure.keychain.util.Passphrase;
 
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -64,7 +65,8 @@ public class CertifyOperation extends BaseOperation {
         super(context, providerHelper, progressable, cancelled);
     }
 
-    public CertifyResult certify(CertifyActionsParcel parcel, CryptoInputParcel cryptoInput, String keyServerUri) {
+    public CertifyResult certify(CertifyActionsParcel parcel, CryptoInputParcel cryptoInput, String keyServerUri,
+                                 Proxy proxy) {
 
         OperationLog log = new OperationLog();
         log.add(LogType.MSG_CRT, 0);
@@ -209,7 +211,7 @@ public class CertifyOperation extends BaseOperation {
             if (importExportOperation != null) {
                 // TODO use subresult, get rid of try/catch!
                 try {
-                    importExportOperation.uploadKeyRingToServer(keyServer, certifiedKey);
+                    importExportOperation.uploadKeyRingToServer(keyServer, certifiedKey, proxy);
                     uploadOk += 1;
                 } catch (AddKeyException e) {
                     Log.e(Constants.TAG, "error uploading key", e);
