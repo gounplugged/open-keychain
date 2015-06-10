@@ -183,8 +183,6 @@ public class KeychainService extends Service implements Progressable {
 
     private KeyImportAccumulator mKeyImportAccumulator;
 
-    private KeychainService mKeychainService;
-
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -195,7 +193,6 @@ public class KeychainService extends Service implements Progressable {
      */
     @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
-        mKeychainService = this;
 
         if (ACTION_CANCEL.equals(intent.getAction())) {
             mActionCanceled.set(true);
@@ -232,7 +229,7 @@ public class KeychainService extends Service implements Progressable {
 
                 Log.logDebugBundle(data, "EXTRA_DATA");
 
-                ProviderHelper providerHelper = new ProviderHelper(mKeychainService);
+                ProviderHelper providerHelper = new ProviderHelper(KeychainService.this);
 
                 String action = intent.getAction();
 
@@ -246,7 +243,7 @@ public class KeychainService extends Service implements Progressable {
                         String keyServerUri = data.getString(UPLOAD_KEY_SERVER);
 
                         // Operation
-                        CertifyOperation op = new CertifyOperation(mKeychainService, providerHelper, mKeychainService,
+                        CertifyOperation op = new CertifyOperation(KeychainService.this, providerHelper, KeychainService.this,
                                 mActionCanceled);
                         CertifyResult result = op.certify(parcel, cryptoInput, keyServerUri, getProxyFromBundle(data));
 
@@ -260,9 +257,9 @@ public class KeychainService extends Service implements Progressable {
                         // Operation
                         ConsolidateResult result;
                         if (data.containsKey(CONSOLIDATE_RECOVERY) && data.getBoolean(CONSOLIDATE_RECOVERY)) {
-                            result = providerHelper.consolidateDatabaseStep2(mKeychainService);
+                            result = providerHelper.consolidateDatabaseStep2(KeychainService.this);
                         } else {
-                            result = providerHelper.consolidateDatabaseStep1(mKeychainService);
+                            result = providerHelper.consolidateDatabaseStep1(KeychainService.this);
                         }
 
                         // Result
@@ -280,7 +277,7 @@ public class KeychainService extends Service implements Progressable {
                         input.setDecryptMetadataOnly(true);
 
                         // Operation
-                        PgpDecryptVerify op = new PgpDecryptVerify(mKeychainService, providerHelper, mKeychainService);
+                        PgpDecryptVerify op = new PgpDecryptVerify(KeychainService.this, providerHelper, KeychainService.this);
                         DecryptVerifyResult decryptVerifyResult = op.execute(input, cryptoInput);
 
                         // Result
@@ -343,8 +340,8 @@ public class KeychainService extends Service implements Progressable {
                                 }
                             }
 
-                            PgpDecryptVerify op = new PgpDecryptVerify(mKeychainService, providerHelper,
-                                    mKeychainService);
+                            PgpDecryptVerify op = new PgpDecryptVerify(KeychainService.this, providerHelper,
+                                    KeychainService.this);
 
                             PgpDecryptVerifyInputParcel input = new PgpDecryptVerifyInputParcel(messageBytes)
                                     .setSignedLiteralData(true)
@@ -393,7 +390,7 @@ public class KeychainService extends Service implements Progressable {
                         input.setDecryptMetadataOnly(false);
 
                         // Operation
-                        PgpDecryptVerify op = new PgpDecryptVerify(mKeychainService, providerHelper, mKeychainService);
+                        PgpDecryptVerify op = new PgpDecryptVerify(KeychainService.this, providerHelper, KeychainService.this);
                         DecryptVerifyResult decryptVerifyResult = op.execute(input, cryptoInput);
 
                         // Output
@@ -408,7 +405,7 @@ public class KeychainService extends Service implements Progressable {
                         boolean isSecret = data.getBoolean(DELETE_IS_SECRET);
 
                         // Operation
-                        DeleteOperation op = new DeleteOperation(mKeychainService, providerHelper, mKeychainService);
+                        DeleteOperation op = new DeleteOperation(KeychainService.this, providerHelper, KeychainService.this);
                         DeleteResult result = op.execute(masterKeyIds, isSecret);
 
                         // Result
@@ -423,8 +420,8 @@ public class KeychainService extends Service implements Progressable {
                         CryptoInputParcel cryptoInput = data.getParcelable(EXTRA_CRYPTO_INPUT);
 
                         // Operation
-                        EditKeyOperation op = new EditKeyOperation(mKeychainService, providerHelper,
-                                mKeychainService, mActionCanceled);
+                        EditKeyOperation op = new EditKeyOperation(KeychainService.this, providerHelper,
+                                KeychainService.this, mActionCanceled);
                         OperationResult result = op.execute(saveParcel, cryptoInput);
 
                         // Result
@@ -441,7 +438,7 @@ public class KeychainService extends Service implements Progressable {
 
                         // Operation
                         PromoteKeyOperation op = new PromoteKeyOperation(
-                                mKeychainService, providerHelper, mKeychainService,
+                                KeychainService.this, providerHelper, KeychainService.this,
                                 mActionCanceled);
                         PromoteKeyResult result = op.execute(keyRingId, cardAid, subKeyIds);
 
@@ -462,7 +459,7 @@ public class KeychainService extends Service implements Progressable {
 
                         // Operation
                         ImportExportOperation importExportOperation = new ImportExportOperation(
-                                mKeychainService, providerHelper, mKeychainService);
+                                KeychainService.this, providerHelper, KeychainService.this);
                         ExportResult result;
                         if (outputFile != null) {
                             result = importExportOperation.exportToFile(masterKeyIds, exportSecret, outputFile);
@@ -510,7 +507,7 @@ public class KeychainService extends Service implements Progressable {
 
                         // Operation
                         SignEncryptOperation op = new SignEncryptOperation(
-                                mKeychainService, providerHelper, mKeychainService, mActionCanceled);
+                                KeychainService.this, providerHelper, KeychainService.this, mActionCanceled);
                         SignEncryptResult result = op.execute(inputParcel, cryptoInput);
 
                         // Result
@@ -529,8 +526,8 @@ public class KeychainService extends Service implements Progressable {
                             HkpKeyserver server = new HkpKeyserver(keyServer);
 
                             CanonicalizedPublicKeyRing keyring = providerHelper.getCanonicalizedPublicKeyRing(dataUri);
-                            ImportExportOperation importExportOperation = new ImportExportOperation(mKeychainService,
-                                    providerHelper, mKeychainService);
+                            ImportExportOperation importExportOperation = new ImportExportOperation(KeychainService.this,
+                                    providerHelper, KeychainService.this);
 
                             try {
                                 importExportOperation.uploadKeyRingToServer(server, keyring, getProxyFromBundle(data));
@@ -584,7 +581,7 @@ public class KeychainService extends Service implements Progressable {
         // contextualize the exception, if necessary
         String message;
         if (e instanceof PgpGeneralMsgIdException) {
-            e = ((PgpGeneralMsgIdException) e).getContextualized(mKeychainService);
+            e = ((PgpGeneralMsgIdException) e).getContextualized(KeychainService.this);
             message = e.getMessage();
         } else {
             message = e.getMessage();
@@ -668,11 +665,11 @@ public class KeychainService extends Service implements Progressable {
                                 ProviderHelper providerHelper, Proxy proxy) {
         Log.d(Constants.TAG, "serial key import starting");
         ParcelableFileCache<ParcelableKeyRing> cache =
-                new ParcelableFileCache<>(mKeychainService, "key_import.pcl");
+                new ParcelableFileCache<>(KeychainService.this, "key_import.pcl");
 
         // Operation
         ImportExportOperation importExportOperation = new ImportExportOperation(
-                mKeychainService, providerHelper, mKeychainService,
+                KeychainService.this, providerHelper, KeychainService.this,
                 mActionCanceled);
         // Either list or cache must be null, no guarantees otherwise.
         ImportKeyResult result = keyList != null
@@ -690,7 +687,7 @@ public class KeychainService extends Service implements Progressable {
             keyServer, final Proxy proxy) {
         Log.d(Constants.TAG, "Multi-threaded key import starting");
         if (keyListIterator != null) {
-            mKeyImportAccumulator = new KeyImportAccumulator(totKeys, mKeychainService);
+            mKeyImportAccumulator = new KeyImportAccumulator(totKeys, KeychainService.this);
             setProgress(0, totKeys);
 
             final int maxThreads = 200;
@@ -709,8 +706,8 @@ public class KeychainService extends Service implements Progressable {
                         ImportKeyResult result = null;
                         try {
                             ImportExportOperation importExportOperation = new ImportExportOperation(
-                                    mKeychainService,
-                                    new ProviderHelper(mKeychainService),
+                                    KeychainService.this,
+                                    new ProviderHelper(KeychainService.this),
                                     mKeyImportAccumulator.getImportProgressable(),
                                     mActionCanceled);
 
