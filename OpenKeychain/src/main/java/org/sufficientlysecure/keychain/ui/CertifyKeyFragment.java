@@ -25,10 +25,7 @@ import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.graphics.PorterDuff;
 import android.net.Uri;
-import android.os.Bundle;
-import android.os.Message;
-import android.os.Messenger;
-import android.os.Parcel;
+import android.os.*;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
@@ -61,6 +58,7 @@ import org.sufficientlysecure.keychain.ui.util.Notify;
 import org.sufficientlysecure.keychain.ui.widget.CertifyKeySpinner;
 import org.sufficientlysecure.keychain.util.Log;
 import org.sufficientlysecure.keychain.util.Preferences;
+import org.sufficientlysecure.keychain.util.orbot.OrbotHelper;
 
 import java.util.ArrayList;
 
@@ -90,10 +88,13 @@ public class CertifyKeyFragment extends CachingCryptoOperationFragment<CertifyAc
 
     private MultiUserIdsAdapter mUserIdsAdapter;
     private Messenger mPassthroughMessenger;
+    private Preferences.ProxyPrefs mProxyPrefs;
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
+
+        mProxyPrefs = Preferences.getPreferences(getActivity()).getProxyPrefs();
 
         mPubMasterKeyIds = getActivity().getIntent().getLongArrayExtra(CertifyKeyActivity.EXTRA_KEY_IDS);
         if (mPubMasterKeyIds == null) {
@@ -175,7 +176,25 @@ public class CertifyKeyFragment extends CachingCryptoOperationFragment<CertifyAc
                     Notify.create(getActivity(), getString(R.string.select_key_to_certify),
                             Notify.Style.ERROR).show();
                 } else {
-                    cryptoOperation();
+
+                    if (mUploadKeyCheckbox.isChecked() && mProxyPrefs.torEnabled) {
+                        Handler ignoreTorHandler = new Handler() {
+                            @Override
+                            public void handleMessage(Message msg) {
+                                mProxyPrefs = new Preferences.ProxyPrefs(false, false, null, -1, null);
+                                cryptoOperation();
+                            }
+                        };
+                        if (!OrbotHelper.isOrbotInstalled(getActivity())) {
+                            OrbotHelper.getInstallDialogFragmentWithThirdButton(new Messenger(ignoreTorHandler),
+                                    R.string.orbot_install_dialog_ignore_tor).show(getActivity().getSupportFragmentManager(), "installOrbot");
+                        } else if (!OrbotHelper.isOrbotRunning()) {
+                            OrbotHelper.getOrbotStartDialogFragment(new Messenger(ignoreTorHandler),
+                                    R.string.orbot_install_dialog_ignore_tor).show(getActivity().getSupportFragmentManager(), "startOrbot");
+                        } else {
+                            cryptoOperation();
+                        }
+                    }
                 }
             }
         });
@@ -335,6 +354,7 @@ public class CertifyKeyFragment extends CachingCryptoOperationFragment<CertifyAc
             if (mUploadKeyCheckbox.isChecked()) {
                 String keyserver = Preferences.getPreferences(getActivity()).getPreferredKeyserver();
                 data.putString(KeychainService.UPLOAD_KEY_SERVER, keyserver);
+                data.putParcelable(KeychainService.EXTRA_PARCELABLE_PROXY, mProxyPrefs.parcelableProxy);
             }
         }
 
