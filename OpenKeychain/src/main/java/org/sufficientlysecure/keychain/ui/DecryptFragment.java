@@ -54,7 +54,9 @@ import org.sufficientlysecure.keychain.ui.util.KeyFormattingUtils;
 import org.sufficientlysecure.keychain.ui.util.KeyFormattingUtils.State;
 import org.sufficientlysecure.keychain.ui.util.Notify;
 import org.sufficientlysecure.keychain.ui.util.Notify.Style;
+import org.sufficientlysecure.keychain.util.ParcelableProxy;
 import org.sufficientlysecure.keychain.util.Preferences;
+import org.sufficientlysecure.keychain.util.orbot.OrbotHelper;
 
 public abstract class DecryptFragment extends CryptoOperationFragment implements
         LoaderManager.LoaderCallbacks<Cursor> {
@@ -128,7 +130,7 @@ public abstract class DecryptFragment extends CryptoOperationFragment implements
         }
     }
 
-    private void lookupUnknownKey(long unknownKeyId) {
+    private void lookupUnknownKey(long unknownKeyId, ParcelableProxy parcelableProxy) {
 
         // Message is received after importing is done in KeychainService
         ServiceProgressHandler serviceHandler = new ServiceProgressHandler(getActivity()) {
@@ -174,6 +176,8 @@ public abstract class DecryptFragment extends CryptoOperationFragment implements
 
             data.putParcelableArrayList(KeychainService.IMPORT_KEY_LIST, selectedEntries);
         }
+
+        data.putParcelable(KeychainService.EXTRA_PARCELABLE_PROXY, parcelableProxy);
 
         // Send all information needed to service to query keys in other thread
         Intent intent = new Intent(getActivity(), KeychainService.class);
@@ -431,7 +435,19 @@ public abstract class DecryptFragment extends CryptoOperationFragment implements
                 mSignatureLayout.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        lookupUnknownKey(signatureKeyId);
+                        final Preferences.ProxyPrefs proxyPrefs = Preferences.getPreferences(getActivity())
+                                .getProxyPrefs();
+                        Runnable ignoreTor = new Runnable() {
+                            @Override
+                            public void run() {
+                                lookupUnknownKey(signatureKeyId, new ParcelableProxy(null, -1, null));
+                            }
+                        };
+
+                        if (OrbotHelper.isOrbotInRequiredState(R.string.orbot_ignore_tor, ignoreTor, proxyPrefs,
+                                getActivity())) {
+                            lookupUnknownKey(signatureKeyId, proxyPrefs.parcelableProxy);
+                        }
                     }
                 });
 
